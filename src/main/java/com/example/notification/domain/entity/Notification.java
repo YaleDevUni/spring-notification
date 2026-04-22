@@ -20,11 +20,11 @@ public class Notification {
     private String recipientId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "notification_type")
+    @Column(nullable = false, length = 50)
     private NotificationType type;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "notification_channel")
+    @Column(nullable = false, length = 20)
     private NotificationChannel channel;
 
     @Column(name = "ref_type", nullable = false)
@@ -34,7 +34,7 @@ public class Notification {
     private String refId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "notification_status")
+    @Column(nullable = false, length = 20)
     private NotificationStatus status;
 
     @Column(name = "scheduled_at")

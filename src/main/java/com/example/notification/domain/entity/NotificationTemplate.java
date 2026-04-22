@@ -15,11 +15,11 @@ public class NotificationTemplate {
     private UUID id;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "notification_type")
+    @Column(nullable = false, length = 50)
     private NotificationType type;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "notification_channel")
+    @Column(nullable = false, length = 20)
     private NotificationChannel channel;
 
     @Column(name = "subject_template", columnDefinition = "TEXT")

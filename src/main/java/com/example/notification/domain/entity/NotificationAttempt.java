@@ -21,7 +21,7 @@ public class NotificationAttempt {
     private int attemptNumber;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "attempt_status")
+    @Column(nullable = false, length = 20)
     private AttemptStatus status;
 
     @Column(name = "failure_reason", columnDefinition = "TEXT")

@@ -25,8 +25,6 @@ public class InAppNotification {
     public static InAppNotification create(Notification notification) {
         InAppNotification n = new InAppNotification();
         n.notification = notification;
-        n.notificationId = notification.getId();
-        n.readAt = null;
         return n;
     }
 
