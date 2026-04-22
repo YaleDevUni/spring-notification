@@ -2,9 +2,7 @@ package com.example.notification.presentation;
 
 import com.example.notification.application.dto.CreateNotificationRequest;
 import com.example.notification.application.service.NotificationService;
-import com.example.notification.domain.entity.Notification;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,27 +19,33 @@ public class NotificationController {
         this.notificationService = notificationService;
     }
 
+    // 202 Accepted: DB INSERT까지만 동기, 실제 발송은 Worker 스레드가 비동기 처리
+    // HTTP 스레드는 발송 성공 여부를 알 수 없으므로 200 OK가 아닌 202가 의미상 정확
     @PostMapping
-    public ResponseEntity<Notification> create(@Valid @RequestBody CreateNotificationRequestBody body) {
+    public ResponseEntity<NotificationResponse> create(@Valid @RequestBody CreateNotificationRequestBody body) {
         CreateNotificationRequest req = new CreateNotificationRequest(
                 body.recipientId(), body.type(), body.channel(),
                 body.refType(), body.refId(), body.scheduledAt());
-        Notification saved = notificationService.createNotification(req);
-        return ResponseEntity.accepted().body(saved);
+        return ResponseEntity.accepted().body(NotificationResponse.from(notificationService.createNotification(req)));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Notification> get(@PathVariable UUID id) {
-        return ResponseEntity.ok(notificationService.getNotification(id));
+    public ResponseEntity<NotificationResponse> get(@PathVariable UUID id) {
+        return ResponseEntity.ok(NotificationResponse.from(notificationService.getNotification(id)));
     }
 
     @GetMapping
-    public ResponseEntity<List<Notification>> list(
+    public ResponseEntity<List<NotificationResponse>> list(
             @RequestParam String recipientId,
             @RequestParam(required = false) Boolean read) {
-        return ResponseEntity.ok(notificationService.listByRecipient(recipientId, read));
+        return ResponseEntity.ok(
+                notificationService.listByRecipient(recipientId, read).stream()
+                        .map(NotificationResponse::from)
+                        .toList());
     }
 
+    // 200 vs 204: 최초 읽음 처리 성공이면 200, 이미 읽은 상태(no-op)면 204
+    // 클라이언트가 읽음 처리 성공 여부를 상태 코드로 구분 가능
     @PatchMapping("/{id}/read")
     public ResponseEntity<Void> markAsRead(@PathVariable UUID id) {
         boolean updated = notificationService.markAsRead(id);
@@ -51,7 +55,7 @@ public class NotificationController {
     }
 
     @PostMapping("/{id}/retry")
-    public ResponseEntity<Notification> retry(@PathVariable UUID id) {
-        return ResponseEntity.ok(notificationService.retryDead(id));
+    public ResponseEntity<NotificationResponse> retry(@PathVariable UUID id) {
+        return ResponseEntity.ok(NotificationResponse.from(notificationService.retryDead(id)));
     }
 }

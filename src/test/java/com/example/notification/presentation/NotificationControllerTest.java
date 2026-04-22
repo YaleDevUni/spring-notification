@@ -5,7 +5,6 @@ import com.example.notification.application.service.NotificationNotFoundExceptio
 import com.example.notification.application.service.NotificationService;
 import com.example.notification.domain.entity.Notification;
 import com.example.notification.domain.enums.NotificationChannel;
-import com.example.notification.domain.enums.NotificationStatus;
 import com.example.notification.domain.enums.NotificationType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
