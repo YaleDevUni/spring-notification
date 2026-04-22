@@ -1,0 +1,24 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/notification_test
+    username: user
+    password: password
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+notification:
+  worker:
+    pool-size: 2
+    batch-size: 2
+    poll-interval-seconds: 1
+  retry:
+    max-attempts: 3
+    manual-max-attempts: 2
+  lock:
+    expire-seconds: 10
