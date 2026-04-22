@@ -13,6 +13,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -47,6 +48,7 @@ public class DbPollingConsumer implements NotificationConsumer {
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     // Spring-managed constructor
+    @Autowired
     public DbPollingConsumer(
             NotificationRepository notificationRepository,
             NotificationLockRepository notificationLockRepository,
@@ -145,37 +147,30 @@ public class DbPollingConsumer implements NotificationConsumer {
     void processNotification(Notification notification) {
         UUID id = notification.getId();
         try {
-            int acquired = notificationRepository.updateStatusIfMatch(
-                    id, NotificationStatus.PENDING, NotificationStatus.PROCESSING);
-            if (acquired == 0) {
-                log.debug("[DbPollingConsumer] skipped notification={} already taken", id);
-                return;
-            }
-            notificationLockRepository.save(NotificationLock.create(id, instanceId, lockExpireSeconds));
-
             ProcessResult result = processor.process(notification);
-            int attemptNumber = notificationAttemptRepository.countByNotificationId(id) + 1;
-
-            if (result instanceof ProcessResult.Success) {
-                notificationAttemptRepository.save(
-                        NotificationAttempt.success(id, attemptNumber, instanceId));
-                notificationRepository.updateStatusIfMatch(
-                        id, NotificationStatus.PROCESSING, NotificationStatus.SENT);
-                log.info("[DbPollingConsumer] SENT notification={} attempt={}", id, attemptNumber);
-            } else {
-                String reason = ((ProcessResult.Failure) result).cause().getMessage();
-                notificationAttemptRepository.save(
-                        NotificationAttempt.failure(id, attemptNumber, reason, instanceId));
-                if (attemptNumber >= maxAttempts) {
+            transactionTemplate.executeWithoutResult(status -> {
+                int attemptNumber = notificationAttemptRepository.countByNotificationId(id) + 1;
+                if (result instanceof ProcessResult.Success) {
+                    notificationAttemptRepository.save(
+                            NotificationAttempt.success(id, attemptNumber, instanceId));
                     notificationRepository.updateStatusIfMatch(
-                            id, NotificationStatus.PROCESSING, NotificationStatus.DEAD);
-                    log.warn("[DbPollingConsumer] DEAD notification={} attempts={}", id, attemptNumber);
+                            id, NotificationStatus.PROCESSING, NotificationStatus.SENT);
+                    log.info("[DbPollingConsumer] SENT notification={} attempt={}", id, attemptNumber);
                 } else {
-                    notificationRepository.updateStatusIfMatch(
-                            id, NotificationStatus.PROCESSING, NotificationStatus.FAILED);
-                    log.warn("[DbPollingConsumer] FAILED notification={} attempt={}/{}", id, attemptNumber, maxAttempts);
+                    String reason = ((ProcessResult.Failure) result).cause().getMessage();
+                    notificationAttemptRepository.save(
+                            NotificationAttempt.failure(id, attemptNumber, reason, instanceId));
+                    if (attemptNumber >= maxAttempts) {
+                        notificationRepository.updateStatusIfMatch(
+                                id, NotificationStatus.PROCESSING, NotificationStatus.DEAD);
+                        log.warn("[DbPollingConsumer] DEAD notification={} attempts={}", id, attemptNumber);
+                    } else {
+                        notificationRepository.updateStatusIfMatch(
+                                id, NotificationStatus.PROCESSING, NotificationStatus.FAILED);
+                        log.warn("[DbPollingConsumer] FAILED notification={} attempt={}/{}", id, attemptNumber, maxAttempts);
+                    }
                 }
-            }
+            });
         } catch (Exception e) {
             log.error("[DbPollingConsumer] unexpected error notification={}", id, e);
         } finally {

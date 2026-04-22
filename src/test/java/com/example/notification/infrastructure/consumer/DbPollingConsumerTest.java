@@ -3,7 +3,6 @@ package com.example.notification.infrastructure.consumer;
 import com.example.notification.domain.entity.Notification;
 import com.example.notification.domain.entity.NotificationAttempt;
 import com.example.notification.domain.enums.NotificationChannel;
-import com.example.notification.domain.enums.NotificationStatus;
 import com.example.notification.domain.enums.NotificationType;
 import com.example.notification.domain.processor.NotificationProcessor;
 import com.example.notification.domain.processor.ProcessResult;
@@ -22,7 +21,6 @@ import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.Executors;
 
 import static com.example.notification.domain.enums.NotificationStatus.*;
@@ -50,11 +48,20 @@ class DbPollingConsumerTest {
                 Executors.newSingleThreadExecutor()
         );
 
-        // TransactionTemplate executes callback inline
         lenient().when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             TransactionCallback<?> cb = inv.getArgument(0);
             return cb.doInTransaction(mock(TransactionStatus.class));
         });
+        lenient().doAnswer(inv -> {
+            org.springframework.transaction.support.TransactionCallbackWithoutResult cb =
+                    new org.springframework.transaction.support.TransactionCallbackWithoutResult() {
+                        @Override protected void doInTransactionWithoutResult(TransactionStatus s) {
+                            ((java.util.function.Consumer<TransactionStatus>) inv.getArgument(0)).accept(s);
+                        }
+                    };
+            cb.doInTransaction(mock(TransactionStatus.class));
+            return null;
+        }).when(transactionTemplate).executeWithoutResult(any());
     }
 
     private Notification pendingNotification() {
@@ -63,7 +70,7 @@ class DbPollingConsumerTest {
     }
 
     @Test
-    @DisplayName("pollOnce — 대기 알림 조회 후 처리 제출")
+    @DisplayName("pollOnce — 대기 알림 조회 후 PROCESSING 전환 + 락 저장 + 처리 제출")
     void pollOnce_fetches_and_submits() throws InterruptedException {
         Notification n = pendingNotification();
         when(notificationRepository.findPendingForUpdate(10)).thenReturn(List.of(n));
@@ -73,28 +80,27 @@ class DbPollingConsumerTest {
 
         consumer.pollOnce();
 
-        Thread.sleep(200); // worker thread 실행 대기
+        Thread.sleep(200);
         verify(notificationRepository).findPendingForUpdate(10);
+        verify(notificationRepository).updateStatusIfMatch(any(), eq(PENDING), eq(PROCESSING));
+        verify(notificationLockRepository).save(any());
         verify(processor).process(n);
     }
 
     @Test
-    @DisplayName("processNotification — 성공 시 SENT 상태로 변경 + SUCCESS 이력 저장")
+    @DisplayName("processNotification — 성공 시 SENT 상태 + SUCCESS 이력 저장")
     void processNotification_success() {
         Notification n = pendingNotification();
-        when(notificationRepository.updateStatusIfMatch(any(), eq(PENDING), eq(PROCESSING))).thenReturn(1);
         when(processor.process(n)).thenReturn(new ProcessResult.Success());
         when(notificationAttemptRepository.countByNotificationId(any())).thenReturn(0);
 
         consumer.processNotification(n);
 
-        verify(notificationRepository).updateStatusIfMatch(any(), eq(PENDING), eq(PROCESSING));
-        verify(notificationLockRepository).save(any());
         verify(processor).process(n);
 
-        ArgumentCaptor<NotificationAttempt> attemptCaptor = ArgumentCaptor.forClass(NotificationAttempt.class);
-        verify(notificationAttemptRepository).save(attemptCaptor.capture());
-        assertThat(attemptCaptor.getValue().getStatus().name()).isEqualTo("SUCCESS");
+        ArgumentCaptor<NotificationAttempt> captor = ArgumentCaptor.forClass(NotificationAttempt.class);
+        verify(notificationAttemptRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus().name()).isEqualTo("SUCCESS");
 
         verify(notificationRepository).updateStatusIfMatch(any(), eq(PROCESSING), eq(SENT));
         verify(notificationLockRepository).deleteById(any());
@@ -105,9 +111,8 @@ class DbPollingConsumerTest {
     void processNotification_failure_below_max() {
         Notification n = pendingNotification();
         RuntimeException ex = new RuntimeException("SMTP error");
-        when(notificationRepository.updateStatusIfMatch(any(), eq(PENDING), eq(PROCESSING))).thenReturn(1);
         when(processor.process(n)).thenReturn(new ProcessResult.Failure(ex));
-        when(notificationAttemptRepository.countByNotificationId(any())).thenReturn(0); // 1st attempt
+        when(notificationAttemptRepository.countByNotificationId(any())).thenReturn(0);
 
         consumer.processNotification(n);
 
@@ -125,26 +130,13 @@ class DbPollingConsumerTest {
     void processNotification_failure_at_max() {
         Notification n = pendingNotification();
         RuntimeException ex = new RuntimeException("persistent error");
-        when(notificationRepository.updateStatusIfMatch(any(), eq(PENDING), eq(PROCESSING))).thenReturn(1);
         when(processor.process(n)).thenReturn(new ProcessResult.Failure(ex));
-        when(notificationAttemptRepository.countByNotificationId(any())).thenReturn(2); // 3rd attempt (maxAttempts=3)
+        when(notificationAttemptRepository.countByNotificationId(any())).thenReturn(2); // 3rd attempt
 
         consumer.processNotification(n);
 
         verify(notificationRepository).updateStatusIfMatch(any(), eq(PROCESSING), eq(DEAD));
         verify(notificationRepository, never()).updateStatusIfMatch(any(), eq(PROCESSING), eq(FAILED));
         verify(notificationLockRepository).deleteById(any());
-    }
-
-    @Test
-    @DisplayName("processNotification — 다른 인스턴스가 선점한 경우 처리 건너뜀")
-    void processNotification_skips_when_already_taken() {
-        Notification n = pendingNotification();
-        when(notificationRepository.updateStatusIfMatch(any(), eq(PENDING), eq(PROCESSING))).thenReturn(0);
-
-        consumer.processNotification(n);
-
-        verifyNoInteractions(processor, notificationAttemptRepository);
-        verify(notificationLockRepository, never()).save(any());
     }
 }

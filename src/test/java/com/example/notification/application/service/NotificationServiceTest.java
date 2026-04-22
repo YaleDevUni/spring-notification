@@ -55,18 +55,18 @@ class NotificationServiceTest {
     void create_returns_saved_notification() {
         CreateNotificationRequest req = emailRequest();
         Notification saved = savedNotification(req);
-        when(notificationRepository.save(any())).thenReturn(saved);
+        when(notificationRepository.saveAndFlush(any())).thenReturn(saved);
 
         Notification result = service.createNotification(req);
 
         assertThat(result.getStatus()).isEqualTo(NotificationStatus.PENDING);
-        verify(notificationRepository).save(any(Notification.class));
+        verify(notificationRepository).saveAndFlush(any(Notification.class));
     }
 
     @Test
     @DisplayName("createNotification — UNIQUE 충돌 시 DuplicateNotificationException 발생")
     void create_throws_on_unique_violation() {
-        when(notificationRepository.save(any()))
+        when(notificationRepository.saveAndFlush(any()))
                 .thenThrow(new DataIntegrityViolationException("unique"));
 
         assertThatThrownBy(() -> service.createNotification(emailRequest()))

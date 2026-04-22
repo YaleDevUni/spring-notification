@@ -7,6 +7,7 @@ import com.example.notification.domain.enums.NotificationType;
 import com.example.notification.infrastructure.channel.EmailChannelSender;
 import com.example.notification.infrastructure.channel.InAppChannelSender;
 import com.example.notification.infrastructure.repository.InAppNotificationRepository;
+import com.example.notification.infrastructure.repository.NotificationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,12 +28,14 @@ class NotificationProcessorTest {
     private InAppChannelSender inAppSender;
     @Mock
     private InAppNotificationRepository inAppRepository;
+    @Mock
+    private NotificationRepository notificationRepository;
 
     private NotificationProcessor processor;
 
     @BeforeEach
     void setUp() {
-        processor = new NotificationProcessorImpl(emailSender, inAppSender, inAppRepository);
+        processor = new NotificationProcessorImpl(emailSender, inAppSender, inAppRepository, notificationRepository);
     }
 
     @Test
@@ -53,6 +56,7 @@ class NotificationProcessorTest {
     void inApp_channel_saves_record_and_returns_success() {
         Notification n = Notification.create("user-1", NotificationType.EVENT_REMINDER,
                 NotificationChannel.IN_APP, "EVENT", "evt-1", null);
+        when(notificationRepository.getReferenceById(any())).thenReturn(n);
 
         ProcessResult result = processor.process(n);
 

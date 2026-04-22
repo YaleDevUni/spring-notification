@@ -1,5 +1,6 @@
 package com.example.notification.domain.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
@@ -39,6 +40,7 @@ public class InAppNotification {
     }
 
     public UUID getNotificationId() { return notificationId; }
+    @JsonIgnore
     public Notification getNotification() { return notification; }
     public Instant getReadAt() { return readAt; }
 }
