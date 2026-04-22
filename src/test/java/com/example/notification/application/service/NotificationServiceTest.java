@@ -6,6 +6,7 @@ import com.example.notification.domain.enums.NotificationChannel;
 import com.example.notification.domain.enums.NotificationStatus;
 import com.example.notification.domain.enums.NotificationType;
 import com.example.notification.infrastructure.repository.InAppNotificationRepository;
+import com.example.notification.infrastructure.repository.NotificationAttemptRepository;
 import com.example.notification.infrastructure.repository.NotificationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -23,6 +24,8 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+// NotificationService 단위 테스트: Repository를 Mock으로 격리하여 서비스 유스케이스 로직만 검증
+// @Transactional이 붙은 메서드도 Mock 환경에서는 트랜잭션 없이 실행됨 — 트랜잭션 경계 검증은 통합 테스트로
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
 
@@ -30,12 +33,20 @@ class NotificationServiceTest {
     private NotificationRepository notificationRepository;
     @Mock
     private InAppNotificationRepository inAppNotificationRepository;
+    @Mock
+    private NotificationAttemptRepository notificationAttemptRepository;
+
+    // maxAttempts=3, manualMaxAttempts=2 로 고정하여 경계값 테스트 명확화
+    private static final int MAX_ATTEMPTS = 3;
+    private static final int MANUAL_MAX_ATTEMPTS = 2;
 
     private NotificationService service;
 
     @BeforeEach
     void setUp() {
-        service = new NotificationService(notificationRepository, inAppNotificationRepository);
+        service = new NotificationService(
+                notificationRepository, inAppNotificationRepository,
+                notificationAttemptRepository, MAX_ATTEMPTS, MANUAL_MAX_ATTEMPTS);
     }
 
     private CreateNotificationRequest emailRequest() {
@@ -80,7 +91,8 @@ class NotificationServiceTest {
     void get_returns_notification() {
         UUID id = UUID.randomUUID();
         Notification n = savedNotification(emailRequest());
-        when(notificationRepository.findById(id)).thenReturn(Optional.of(n));
+        // getNotification은 findByIdWithInApp 사용 (open-in-view=false + LAZY 안전 보장)
+        when(notificationRepository.findByIdWithInApp(id)).thenReturn(Optional.of(n));
 
         Notification result = service.getNotification(id);
 
@@ -91,7 +103,7 @@ class NotificationServiceTest {
     @DisplayName("getNotification — 존재하지 않는 ID 시 NotificationNotFoundException 발생")
     void get_throws_when_not_found() {
         UUID id = UUID.randomUUID();
-        when(notificationRepository.findById(id)).thenReturn(Optional.empty());
+        when(notificationRepository.findByIdWithInApp(id)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getNotification(id))
                 .isInstanceOf(NotificationNotFoundException.class);
@@ -163,15 +175,17 @@ class NotificationServiceTest {
     // --- retryDead ---
 
     @Test
-    @DisplayName("retryDead — DEAD 알림을 PENDING으로 변경 후 반환")
+    @DisplayName("retryDead — DEAD 알림을 PENDING으로 변경 후 반환 (자동 재시도 이력 3회 = 수동 한도 미소진)")
     void retryDead_marks_pending() {
         UUID id = UUID.randomUUID();
         Notification dead = savedNotification(emailRequest());
         dead.markProcessing();
         dead.markFailed();
         dead.markDead();
-        when(notificationRepository.findById(id)).thenReturn(Optional.of(dead));
+        when(notificationRepository.findByIdWithInApp(id)).thenReturn(Optional.of(dead));
         when(notificationRepository.save(dead)).thenReturn(dead);
+        // totalAttempts=3 == maxAttempts → manualAttemptsDone=0 < manualMaxAttempts=2 → 재시도 허용
+        when(notificationAttemptRepository.countByNotificationId(id)).thenReturn(3L);
 
         Notification result = service.retryDead(id);
 
@@ -183,9 +197,40 @@ class NotificationServiceTest {
     void retryDead_throws_when_not_dead() {
         UUID id = UUID.randomUUID();
         Notification pending = savedNotification(emailRequest());
-        when(notificationRepository.findById(id)).thenReturn(Optional.of(pending));
+        when(notificationRepository.findByIdWithInApp(id)).thenReturn(Optional.of(pending));
 
         assertThatThrownBy(() -> service.retryDead(id))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("retryDead — 수동 재시도 한도(2회) 초과 시 IllegalStateException 발생")
+    void retryDead_throws_when_manual_limit_exceeded() {
+        UUID id = UUID.randomUUID();
+        Notification dead = savedNotification(emailRequest());
+        dead.markDead();
+        when(notificationRepository.findByIdWithInApp(id)).thenReturn(Optional.of(dead));
+        // totalAttempts=5 = maxAttempts(3) + manualMaxAttempts(2) → manualAttemptsDone=2 >= 2 → 거부
+        when(notificationAttemptRepository.countByNotificationId(id)).thenReturn(5L);
+
+        assertThatThrownBy(() -> service.retryDead(id))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Manual retry limit exceeded");
+    }
+
+    @Test
+    @DisplayName("retryDead — 수동 재시도 1회 남은 경우 허용 (totalAttempts=4)")
+    void retryDead_allows_last_manual_retry() {
+        UUID id = UUID.randomUUID();
+        Notification dead = savedNotification(emailRequest());
+        dead.markDead();
+        when(notificationRepository.findByIdWithInApp(id)).thenReturn(Optional.of(dead));
+        // totalAttempts=4 → manualAttemptsDone=1 < 2 → 재시도 허용
+        when(notificationAttemptRepository.countByNotificationId(id)).thenReturn(4L);
+        when(notificationRepository.save(dead)).thenReturn(dead);
+
+        Notification result = service.retryDead(id);
+
+        assertThat(result.getStatus()).isEqualTo(NotificationStatus.PENDING);
     }
 }

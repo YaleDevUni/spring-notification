@@ -4,6 +4,7 @@ import com.example.notification.domain.entity.Notification;
 import com.example.notification.domain.enums.NotificationChannel;
 import com.example.notification.domain.enums.NotificationType;
 import com.example.notification.infrastructure.repository.InAppNotificationRepository;
+import com.example.notification.infrastructure.repository.NotificationAttemptRepository;
 import com.example.notification.infrastructure.repository.NotificationRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -23,6 +24,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+// 전체 스택 통합 테스트: HTTP → Service → Repository → 실 DB 흐름을 검증
+// @Transactional: 각 테스트 후 롤백 — 테스트 간 데이터 격리, DB 정리 불필요
+// spring.profiles.active="": "db" 프로파일 비활성화 → DbPollingConsumer 미시작 (테스트 중 폴링 간섭 방지)
+// 사전 조건: docker compose up db (포트 5433, notification_test DB 존재)
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
@@ -40,6 +45,7 @@ class NotificationApiIntegrationTest {
     @Autowired ObjectMapper objectMapper;
     @Autowired NotificationRepository notificationRepository;
     @Autowired InAppNotificationRepository inAppNotificationRepository;
+    @Autowired NotificationAttemptRepository notificationAttemptRepository;
 
     private String json(Object body) throws Exception {
         return objectMapper.writeValueAsString(body);
@@ -174,6 +180,26 @@ class NotificationApiIntegrationTest {
         Notification n = notificationRepository.save(
                 Notification.create("u7", NotificationType.SYSTEM_ALERT,
                         NotificationChannel.EMAIL, "SYS", "s-7", null));
+
+        mockMvc.perform(post("/notifications/{id}/retry", n.getId()))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("POST /{id}/retry — 수동 재시도 한도 초과 시 409 (attempts >= maxAttempts + manualMaxAttempts)")
+    void retry_manual_limit_exceeded_returns_409() throws Exception {
+        // application.yml: max-attempts=3, manual-max-attempts=2 → total limit = 5
+        Notification n = Notification.create("u8", NotificationType.SYSTEM_ALERT,
+                NotificationChannel.EMAIL, "SYS", "s-8", null);
+        n.markDead();
+        notificationRepository.save(n);
+
+        // attempts 5건 직접 저장 (3 auto + 2 manual = 한도 도달)
+        for (int i = 1; i <= 5; i++) {
+            notificationAttemptRepository.save(
+                    com.example.notification.domain.entity.NotificationAttempt
+                            .failure(n.getId(), i, "test failure", "test-instance"));
+        }
 
         mockMvc.perform(post("/notifications/{id}/retry", n.getId()))
                 .andExpect(status().isConflict());

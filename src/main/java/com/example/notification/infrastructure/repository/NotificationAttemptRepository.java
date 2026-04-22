@@ -10,5 +10,5 @@ import java.util.UUID;
 public interface NotificationAttemptRepository extends JpaRepository<NotificationAttempt, UUID> {
 
     @Query("SELECT COUNT(a) FROM NotificationAttempt a WHERE a.notificationId = :notificationId")
-    int countByNotificationId(@Param("notificationId") UUID notificationId);
+    long countByNotificationId(@Param("notificationId") UUID notificationId);
 }

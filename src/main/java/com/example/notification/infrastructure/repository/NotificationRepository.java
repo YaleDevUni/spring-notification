@@ -9,10 +9,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
 
+    // JPQL은 FOR UPDATE SKIP LOCKED를 지원하지 않으므로 nativeQuery 필수
+    // SKIP LOCKED: 다른 인스턴스/워커가 락 잡은 row를 건너뜀 → 별도 분산 락 없이 중복 처리 방지
+    // LIMIT :limit = workerPool.coreSize: 처리 가능한 양만큼만 폴링해 큐 적체 방지
     @Query(value = """
             SELECT * FROM notifications
             WHERE status = 'PENDING'
@@ -22,6 +26,10 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
             FOR UPDATE SKIP LOCKED
             """, nativeQuery = true)
     List<Notification> findPendingForUpdate(@Param("limit") int limit);
+
+    // open-in-view=false 환경에서 LAZY inAppNotification 직렬화 시 LazyInitializationException 방지
+    @Query("SELECT n FROM Notification n LEFT JOIN FETCH n.inAppNotification WHERE n.id = :id")
+    Optional<Notification> findByIdWithInApp(@Param("id") UUID id);
 
     @Query("""
             SELECT n FROM Notification n
@@ -53,6 +61,9 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     List<Notification> findReadByRecipientId(@Param("recipientId") String recipientId,
                                              @Param("channel") NotificationChannel channel);
 
+    // clearAutomatically=true: 벌크 UPDATE 후 1차 캐시(영속성 컨텍스트)를 비워
+    //   이후 findById 등이 캐시된 구 상태 대신 실제 DB 값을 읽도록 강제
+    // CAS 패턴: currentStatus 불일치 시 영향 row = 0 반환 → 다른 Worker가 이미 처리했음을 감지
     @Modifying(clearAutomatically = true)
     @Query("""
             UPDATE Notification n
