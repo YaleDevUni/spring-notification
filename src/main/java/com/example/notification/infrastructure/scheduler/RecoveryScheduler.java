@@ -26,6 +26,8 @@ public class RecoveryScheduler {
         this.notificationRepository = notificationRepository;
     }
 
+    // fixedDelay: 이전 실행 완료 후 60초 대기 — 복구 작업이 오래 걸려도 중첩 실행 없음
+    // fixedRate를 쓰면 복구 작업이 지연될 때 다음 사이클이 겹쳐 중복 복구 시도 가능
     @Scheduled(fixedDelay = 60_000)
     @Transactional
     public void recoverZombieLocks() {

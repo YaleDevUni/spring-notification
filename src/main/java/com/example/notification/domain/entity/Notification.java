@@ -46,6 +46,8 @@ public class Notification {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    // cascade=ALL: InAppNotification은 독립 생명주기 없음 — Notification 삭제 시 함께 제거
+    // fetch=LAZY: 조회 API에서 N+1 방지를 위해 필요한 경우만 @Query로 명시적 fetch join
     @OneToOne(mappedBy = "notification", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private InAppNotification inAppNotification;
 
@@ -66,6 +68,8 @@ public class Notification {
         return n;
     }
 
+    // boolean 반환: Worker가 updateStatusIfMatch(PENDING→PROCESSING) 결과와 이중 검증하는 용도
+    // DB 레벨 CAS(updateStatusIfMatch)가 1차 방어선, 이 메서드는 엔티티 상태 동기화
     public boolean markProcessing() {
         if (status != NotificationStatus.PENDING) return false;
         status = NotificationStatus.PROCESSING;

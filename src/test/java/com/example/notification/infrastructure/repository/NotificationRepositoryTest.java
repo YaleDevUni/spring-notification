@@ -16,6 +16,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+// Repository 통합 테스트: SKIP LOCKED, RETURNING 등 PostgreSQL 전용 쿼리를 실 DB로 검증
+// @AutoConfigureTestDatabase(replace=NONE): 내장 H2 대신 로컬 PostgreSQL 사용 — JPQL로 표현 불가한 native 쿼리 필수
+// 사전 조건: docker compose up db (포트 5433, notification_test DB 존재)
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @TestPropertySource(properties = {

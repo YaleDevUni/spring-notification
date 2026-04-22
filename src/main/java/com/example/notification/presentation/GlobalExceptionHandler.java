@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    // void 반환: 응답 body 없이 상태 코드만 반환. Spring이 @ResponseStatus를 읽어 처리
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public void handleValidation() {}
@@ -23,6 +24,7 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public void handleNotFound() {}
 
+    // retryDead에서 DEAD가 아닌 상태 알림에 재시도 요청 시 발생 → 409로 매핑
     @ExceptionHandler(IllegalStateException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public void handleIllegalState() {}
