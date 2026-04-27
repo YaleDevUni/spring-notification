@@ -164,8 +164,6 @@ class NotificationApiIntegrationTest {
     void retry_dead_returns_200() throws Exception {
         Notification n = Notification.create("u6", NotificationType.SYSTEM_ALERT,
                 NotificationChannel.EMAIL, "SYS", "s-6", null);
-        n.markProcessing();
-        n.markFailed();
         n.markDead();
         notificationRepository.save(n);
 

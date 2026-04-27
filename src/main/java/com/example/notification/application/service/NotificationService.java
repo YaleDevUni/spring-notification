@@ -41,6 +41,9 @@ public class NotificationService {
         try {
             Notification n = Notification.create(req.recipientId(), req.type(), req.channel(),
                     req.refType(), req.refId(), req.scheduledAt());
+            if (n == null) {
+                throw new IllegalStateException("Failed to create notification");
+            }
             return notificationRepository.saveAndFlush(n);
         } catch (DataIntegrityViolationException e) {
             throw new DuplicateNotificationException();

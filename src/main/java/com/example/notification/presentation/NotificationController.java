@@ -29,6 +29,7 @@ public class NotificationController {
         return ResponseEntity.accepted().body(NotificationResponse.from(notificationService.createNotification(req)));
     }
 
+    // 디버깅 및 관리자 대시보드용
     @GetMapping("/{id}")
     public ResponseEntity<NotificationResponse> get(@PathVariable UUID id) {
         return ResponseEntity.ok(NotificationResponse.from(notificationService.getNotification(id)));

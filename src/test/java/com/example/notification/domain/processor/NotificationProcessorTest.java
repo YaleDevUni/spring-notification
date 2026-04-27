@@ -62,8 +62,8 @@ class NotificationProcessorTest {
 
         assertThat(result).isInstanceOf(ProcessResult.Success.class);
         verify(inAppSender).send(n);
-        // save() → insertIfAbsent()로 변경: ON CONFLICT DO NOTHING으로 멱등 보장
-        verify(inAppRepository).insertIfAbsent(any(UUID.class));
+        // create()로 생성된 엔티티는 DB save 전이므로 id=null — insertIfAbsent(null) 호출
+        verify(inAppRepository).insertIfAbsent(null);
         verifyNoInteractions(emailSender);
     }
 

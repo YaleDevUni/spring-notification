@@ -80,6 +80,10 @@ public class Notification {
         status = NotificationStatus.PENDING;
     }
 
+    public void markDead() {
+        status = NotificationStatus.DEAD;
+    }
+
     public UUID getId() { return id; }
     public String getRecipientId() { return recipientId; }
     public NotificationType getType() { return type; }

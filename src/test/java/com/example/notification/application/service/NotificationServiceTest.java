@@ -179,8 +179,6 @@ class NotificationServiceTest {
     void retryDead_marks_pending() {
         UUID id = UUID.randomUUID();
         Notification dead = savedNotification(emailRequest());
-        dead.markProcessing();
-        dead.markFailed();
         dead.markDead();
         when(notificationRepository.findByIdWithInApp(id)).thenReturn(Optional.of(dead));
         when(notificationRepository.save(dead)).thenReturn(dead);
