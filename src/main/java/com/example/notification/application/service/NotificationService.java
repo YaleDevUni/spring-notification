@@ -59,16 +59,18 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public List<Notification> listByRecipient(String recipientId, NotificationChannel channel, Boolean read) {
-        if (read != null && channel != NotificationChannel.IN_APP) {
+        if (read != null && channel != null && channel != NotificationChannel.IN_APP) {
             throw new IllegalArgumentException("read filter is only supported for IN_APP channel");
         }
-        if (read == null) {
-            return notificationRepository.findByRecipientId(recipientId);
+        if (read != null) {
+            return Boolean.FALSE.equals(read)
+                    ? notificationRepository.findUnreadByRecipientId(recipientId, NotificationChannel.IN_APP)
+                    : notificationRepository.findReadByRecipientId(recipientId, NotificationChannel.IN_APP);
         }
-        if (Boolean.FALSE.equals(read)) {
-            return notificationRepository.findUnreadByRecipientId(recipientId, NotificationChannel.IN_APP);
+        if (channel != null) {
+            return notificationRepository.findByRecipientIdAndChannel(recipientId, channel);
         }
-        return notificationRepository.findReadByRecipientId(recipientId, NotificationChannel.IN_APP);
+        return notificationRepository.findByRecipientId(recipientId);
     }
 
     @Transactional

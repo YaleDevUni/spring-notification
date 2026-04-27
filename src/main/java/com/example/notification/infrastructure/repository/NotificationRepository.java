@@ -41,6 +41,16 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
 
     @Query("""
             SELECT n FROM Notification n
+            LEFT JOIN FETCH n.inAppNotification
+            WHERE n.recipientId = :recipientId
+            AND n.channel = :channel
+            ORDER BY n.createdAt DESC
+            """)
+    List<Notification> findByRecipientIdAndChannel(@Param("recipientId") String recipientId,
+                                                   @Param("channel") NotificationChannel channel);
+
+    @Query("""
+            SELECT n FROM Notification n
             LEFT JOIN FETCH n.inAppNotification i
             WHERE n.recipientId = :recipientId
             AND n.channel = :channel

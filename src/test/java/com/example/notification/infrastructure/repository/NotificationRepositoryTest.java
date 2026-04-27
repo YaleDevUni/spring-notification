@@ -77,6 +77,21 @@ class NotificationRepositoryTest {
     }
 
     @Test
+    @DisplayName("채널별 알림 목록을 조회한다 — 다른 채널은 제외")
+    void findByRecipientIdAndChannel_filters_by_channel() {
+        String recipientId = "repo-test-recipient-CH";
+        saveEmail(recipientId, "lec-ch1");
+        saveInApp(recipientId, "evt-ch1");
+        saveEmail("other-user", "lec-ch2");
+
+        List<Notification> result = notificationRepository.findByRecipientIdAndChannel(
+                recipientId, NotificationChannel.IN_APP);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getChannel()).isEqualTo(NotificationChannel.IN_APP);
+    }
+
+    @Test
     @DisplayName("읽지 않은 IN_APP 알림만 조회한다")
     void findUnreadByRecipientId_returns_unread_only() {
         String recipientId = "repo-test-recipient-B";

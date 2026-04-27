@@ -149,6 +149,32 @@ class NotificationServiceTest {
     }
 
     @Test
+    @DisplayName("listByRecipient — channel=IN_APP, read=null 이면 채널 필터만 적용")
+    void list_channel_only_filter() {
+        Notification n = savedNotification(new CreateNotificationRequest("user-1",
+                NotificationType.EVENT_REMINDER, NotificationChannel.IN_APP, "E", "1", null));
+        when(notificationRepository.findByRecipientIdAndChannel("user-1", NotificationChannel.IN_APP))
+                .thenReturn(List.of(n));
+
+        List<Notification> result = service.listByRecipient("user-1", NotificationChannel.IN_APP, null);
+
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("listByRecipient — channel=null, read=false 이면 IN_APP 미읽음 목록 반환")
+    void list_read_filter_without_channel_defaults_to_inapp() {
+        Notification n = savedNotification(new CreateNotificationRequest("user-1",
+                NotificationType.EVENT_REMINDER, NotificationChannel.IN_APP, "E", "1", null));
+        when(notificationRepository.findUnreadByRecipientId("user-1", NotificationChannel.IN_APP))
+                .thenReturn(List.of(n));
+
+        List<Notification> result = service.listByRecipient("user-1", null, false);
+
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
     @DisplayName("listByRecipient — IN_APP 외 채널에 read 필터 시 예외")
     void list_non_inapp_with_read_filter_throws() {
         assertThatThrownBy(() -> service.listByRecipient("user-1", NotificationChannel.EMAIL, false))
