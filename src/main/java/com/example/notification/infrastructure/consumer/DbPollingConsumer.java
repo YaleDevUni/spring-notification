@@ -109,20 +109,21 @@ public class DbPollingConsumer implements NotificationConsumer {
         this.workerPool = workerPool;
     }
 
+    @Override
     @PostConstruct
     public void start() {
         scheduler.scheduleWithFixedDelay(this::pollOnce, 0, pollIntervalSeconds, TimeUnit.SECONDS);
         log.info("[DbPollingConsumer] started instance={} batchSize={}", instanceId, batchSize);
     }
 
+    @Override
     @PreDestroy
     public void stop() {
         scheduler.shutdown();
         workerPool.shutdown();
     }
 
-    @Override
-    public void pollOnce() {
+    void pollOnce() {
         try {
             // TransactionTemplate 사용 이유: ScheduledExecutorService 스레드는 Spring 관리 밖이므로
             // @Transactional AOP 프록시가 동작하지 않음 — 명시적 트랜잭션 필요
@@ -160,34 +161,39 @@ public class DbPollingConsumer implements NotificationConsumer {
             transactionTemplate.executeWithoutResult(status -> {
                 // countByNotificationId: notifications.retry_count 컬럼 없이 attempts 테이블 집계로 대체
                 int attemptNumber = (int) notificationAttemptRepository.countByNotificationId(id) + 1;
-                if (result instanceof ProcessResult.Success) {
-                    notificationAttemptRepository.save(
-                            NotificationAttempt.success(id, attemptNumber, instanceId));
-                    notificationRepository.updateStatusIfMatch(
-                            id, NotificationStatus.PROCESSING, NotificationStatus.SENT);
-                    log.info("[DbPollingConsumer] SENT notification={} attempt={}", id, attemptNumber);
-                } else {
-                    String reason = ((ProcessResult.Failure) result).cause().getMessage();
-                    notificationAttemptRepository.save(
-                            NotificationAttempt.failure(id, attemptNumber, reason, instanceId));
-                    if (attemptNumber >= maxAttempts) {
-                        // 자동 재시도 한도 소진 → DEAD (수동 재시도 대기)
-                        notificationRepository.updateStatusIfMatch(
-                                id, NotificationStatus.PROCESSING, NotificationStatus.DEAD);
-                        log.warn("[DbPollingConsumer] DEAD notification={} attempts={}", id, attemptNumber);
-                    } else {
-                        // 재시도 여지 있음 → 즉시 PENDING 복귀 (FAILED로 두지 않음)
-                        notificationRepository.updateStatusIfMatch(
-                                id, NotificationStatus.PROCESSING, NotificationStatus.PENDING);
-                        log.warn("[DbPollingConsumer] PENDING(retry) notification={} attempt={}/{}", id, attemptNumber, maxAttempts);
-                    }
-                }
+                recordAttempt(id, result, attemptNumber, instanceId);
                 // 상태 업데이트와 락 삭제를 같은 트랜잭션으로 묶어 원자성 보장
                 // finally 블록에서 분리 시: 상태는 갱신됐는데 락 삭제 실패 → RecoveryScheduler가 PROCESSING 알림을 PENDING으로 복귀시켜 중복 발송 시도
                 notificationLockRepository.deleteById(id);
             });
         } catch (Exception e) {
             log.error("[DbPollingConsumer] unexpected error notification={}", id, e);
+        }
+    }
+
+    @Override
+    public void recordAttempt(UUID notificationId, ProcessResult result, int attemptNumber, String instanceId) {
+        if (result instanceof ProcessResult.Success) {
+            notificationAttemptRepository.save(
+                    NotificationAttempt.success(notificationId, attemptNumber, instanceId));
+            notificationRepository.updateStatusIfMatch(
+                    notificationId, NotificationStatus.PROCESSING, NotificationStatus.SENT);
+            log.info("[DbPollingConsumer] SENT notification={} attempt={}", notificationId, attemptNumber);
+        } else {
+            String reason = ((ProcessResult.Failure) result).cause().getMessage();
+            notificationAttemptRepository.save(
+                    NotificationAttempt.failure(notificationId, attemptNumber, reason, instanceId));
+            if (attemptNumber >= maxAttempts) {
+                // 자동 재시도 한도 소진 → DEAD (수동 재시도 대기)
+                notificationRepository.updateStatusIfMatch(
+                        notificationId, NotificationStatus.PROCESSING, NotificationStatus.DEAD);
+                log.warn("[DbPollingConsumer] DEAD notification={} attempts={}", notificationId, attemptNumber);
+            } else {
+                // 재시도 여지 있음 → 즉시 PENDING 복귀 (FAILED로 두지 않음)
+                notificationRepository.updateStatusIfMatch(
+                        notificationId, NotificationStatus.PROCESSING, NotificationStatus.PENDING);
+                log.warn("[DbPollingConsumer] PENDING(retry) notification={} attempt={}/{}", notificationId, attemptNumber, maxAttempts);
+            }
         }
     }
 }
