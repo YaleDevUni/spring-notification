@@ -125,7 +125,7 @@ class DbPollingConsumerTest {
         verify(notificationAttemptRepository).save(captor.capture());
         assertThat(captor.getValue().getStatus().name()).isEqualTo("SUCCESS");
 
-        verify(notificationRepository).updateStatusIfMatch(any(), eq(PROCESSING), eq(SENT));
+        verify(notificationRepository).markSent(any());
         // deleteById는 결과 기록 트랜잭션 내부에서 호출 — finally 블록 아님
         verify(notificationLockRepository).deleteById(any());
     }

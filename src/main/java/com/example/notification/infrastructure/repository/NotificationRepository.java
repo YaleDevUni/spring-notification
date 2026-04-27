@@ -73,4 +73,13 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     int updateStatusIfMatch(@Param("id") UUID id,
                             @Param("currentStatus") NotificationStatus currentStatus,
                             @Param("status") NotificationStatus status);
+
+    // JPQL은 NOW() 함수를 지원하지 않으므로 nativeQuery 사용
+    @Modifying(clearAutomatically = true)
+    @Query(value = """
+            UPDATE notifications
+            SET status = 'SENT', sent_at = NOW()
+            WHERE id = :id AND status = 'PROCESSING'
+            """, nativeQuery = true)
+    int markSent(@Param("id") UUID id);
 }

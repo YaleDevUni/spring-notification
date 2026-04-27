@@ -176,8 +176,7 @@ public class DbPollingConsumer implements NotificationConsumer {
         if (result instanceof ProcessResult.Success) {
             notificationAttemptRepository.save(
                     NotificationAttempt.success(notificationId, attemptNumber, instanceId));
-            notificationRepository.updateStatusIfMatch(
-                    notificationId, NotificationStatus.PROCESSING, NotificationStatus.SENT);
+            notificationRepository.markSent(notificationId);
             log.info("[DbPollingConsumer] SENT notification={} attempt={}", notificationId, attemptNumber);
         } else {
             String reason = ((ProcessResult.Failure) result).cause().getMessage();

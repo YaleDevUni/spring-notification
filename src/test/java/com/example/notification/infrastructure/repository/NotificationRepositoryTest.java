@@ -129,4 +129,18 @@ class NotificationRepositoryTest {
 
         assertThat(updated).isEqualTo(0);
     }
+
+    @Test
+    @DisplayName("markSent — PROCESSING → SENT 전환 시 sentAt이 기록된다")
+    void markSent_sets_sentAt() {
+        Notification n = saveEmail("repo-test-user-sent", "lec-sent1");
+        notificationRepository.updateStatusIfMatch(
+                n.getId(), NotificationStatus.PENDING, NotificationStatus.PROCESSING);
+
+        notificationRepository.markSent(n.getId());
+
+        Notification updated = notificationRepository.findById(n.getId()).orElseThrow();
+        assertThat(updated.getStatus()).isEqualTo(NotificationStatus.SENT);
+        assertThat(updated.getSentAt()).isNotNull();
+    }
 }
