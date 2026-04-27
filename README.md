@@ -90,6 +90,8 @@ docker-compose up db
 
 ### 비동기 처리 구조: DB 폴링
 
+![Architecture](public/architecture.png)
+
 ```
 POST /notifications
     └─ DB INSERT (PENDING)          ← API 스레드 (동기)
@@ -294,6 +296,8 @@ curl -X POST http://localhost:8080/notifications/bb99c225-.../retry
 ---
 
 ## 데이터 모델 설명
+
+![ERD](public/erd.png)
 
 ```
 notifications (핵심 테이블)
