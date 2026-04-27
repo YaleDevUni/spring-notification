@@ -112,40 +112,47 @@ class NotificationServiceTest {
     // --- listByRecipient ---
 
     @Test
-    @DisplayName("listByRecipient — read 필터 없으면 전체 목록 반환")
+    @DisplayName("listByRecipient — channel/read 필터 없으면 전체 목록 반환")
     void list_without_filter_returns_all() {
         Notification n = savedNotification(emailRequest());
         when(notificationRepository.findByRecipientId("user-1")).thenReturn(List.of(n));
 
-        List<Notification> result = service.listByRecipient("user-1", null);
+        List<Notification> result = service.listByRecipient("user-1", null, null);
 
         assertThat(result).hasSize(1);
     }
 
     @Test
-    @DisplayName("listByRecipient — read=false 이면 미읽음 목록 반환")
-    void list_unread_filter() {
+    @DisplayName("listByRecipient — channel=IN_APP, read=false 이면 미읽음 목록 반환")
+    void list_inapp_unread_filter() {
         Notification n = savedNotification(new CreateNotificationRequest("user-1",
                 NotificationType.EVENT_REMINDER, NotificationChannel.IN_APP, "E", "1", null));
         when(notificationRepository.findUnreadByRecipientId("user-1", NotificationChannel.IN_APP))
                 .thenReturn(List.of(n));
 
-        List<Notification> result = service.listByRecipient("user-1", false);
+        List<Notification> result = service.listByRecipient("user-1", NotificationChannel.IN_APP, false);
 
         assertThat(result).hasSize(1);
     }
 
     @Test
-    @DisplayName("listByRecipient — read=true 이면 읽음 목록 반환")
-    void list_read_filter() {
+    @DisplayName("listByRecipient — channel=IN_APP, read=true 이면 읽음 목록 반환")
+    void list_inapp_read_filter() {
         Notification n = savedNotification(new CreateNotificationRequest("user-1",
                 NotificationType.EVENT_REMINDER, NotificationChannel.IN_APP, "E", "1", null));
         when(notificationRepository.findReadByRecipientId("user-1", NotificationChannel.IN_APP))
                 .thenReturn(List.of(n));
 
-        List<Notification> result = service.listByRecipient("user-1", true);
+        List<Notification> result = service.listByRecipient("user-1", NotificationChannel.IN_APP, true);
 
         assertThat(result).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("listByRecipient — IN_APP 외 채널에 read 필터 시 예외")
+    void list_non_inapp_with_read_filter_throws() {
+        assertThatThrownBy(() -> service.listByRecipient("user-1", NotificationChannel.EMAIL, false))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     // --- markAsRead ---

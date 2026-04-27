@@ -2,6 +2,7 @@ package com.example.notification.presentation;
 
 import com.example.notification.application.dto.CreateNotificationRequest;
 import com.example.notification.application.service.NotificationService;
+import com.example.notification.domain.enums.NotificationChannel;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -38,16 +39,17 @@ public class NotificationController {
     @GetMapping
     public ResponseEntity<List<NotificationResponse>> list(
             @RequestParam String recipientId,
+            @RequestParam(required = false) NotificationChannel channel,
             @RequestParam(required = false) Boolean read) {
         return ResponseEntity.ok(
-                notificationService.listByRecipient(recipientId, read).stream()
+                notificationService.listByRecipient(recipientId, channel, read).stream()
                         .map(NotificationResponse::from)
                         .toList());
     }
 
     // 200 vs 204: 최초 읽음 처리 성공이면 200, 이미 읽은 상태(no-op)면 204
     // 클라이언트가 읽음 처리 성공 여부를 상태 코드로 구분 가능
-    @PatchMapping("/{id}/read")
+    @PatchMapping("/{id}/in-app/read")
     public ResponseEntity<Void> markAsRead(@PathVariable UUID id) {
         boolean updated = notificationService.markAsRead(id);
         return updated

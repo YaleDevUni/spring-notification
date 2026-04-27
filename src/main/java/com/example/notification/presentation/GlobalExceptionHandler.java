@@ -28,4 +28,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public void handleIllegalState() {}
+
+    // IN_APP 외 채널에 read 필터 적용 시 발생 → 400으로 매핑
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public void handleIllegalArgument() {}
 }

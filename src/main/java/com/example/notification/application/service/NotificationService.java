@@ -58,7 +58,10 @@ public class NotificationService {
     }
 
     @Transactional(readOnly = true)
-    public List<Notification> listByRecipient(String recipientId, Boolean read) {
+    public List<Notification> listByRecipient(String recipientId, NotificationChannel channel, Boolean read) {
+        if (read != null && channel != NotificationChannel.IN_APP) {
+            throw new IllegalArgumentException("read filter is only supported for IN_APP channel");
+        }
         if (read == null) {
             return notificationRepository.findByRecipientId(recipientId);
         }

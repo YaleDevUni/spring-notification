@@ -107,7 +107,7 @@ class NotificationControllerTest {
     @Test
     @DisplayName("GET /notifications — recipientId로 전체 목록 조회")
     void list_returns_200() throws Exception {
-        when(notificationService.listByRecipient("user-1", null))
+        when(notificationService.listByRecipient("user-1", null, null))
                 .thenReturn(List.of(stubNotification()));
 
         mockMvc.perform(get("/notifications").param("recipientId", "user-1"))
@@ -116,34 +116,48 @@ class NotificationControllerTest {
     }
 
     @Test
-    @DisplayName("GET /notifications?read=false — 미읽음 필터")
-    void list_unread_filter() throws Exception {
-        when(notificationService.listByRecipient("user-1", false))
+    @DisplayName("GET /notifications?channel=IN_APP&read=false — 채널+미읽음 필터")
+    void list_inapp_unread_filter() throws Exception {
+        when(notificationService.listByRecipient("user-1", NotificationChannel.IN_APP, false))
                 .thenReturn(List.of());
 
         mockMvc.perform(get("/notifications")
                         .param("recipientId", "user-1")
+                        .param("channel", "IN_APP")
                         .param("read", "false"))
                 .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("PATCH /notifications/{id}/read — 성공 시 200 OK")
+    @DisplayName("GET /notifications?channel=EMAIL&read=false — EMAIL에 read 필터 시 400")
+    void list_email_with_read_filter_returns_400() throws Exception {
+        when(notificationService.listByRecipient("user-1", NotificationChannel.EMAIL, false))
+                .thenThrow(new IllegalArgumentException());
+
+        mockMvc.perform(get("/notifications")
+                        .param("recipientId", "user-1")
+                        .param("channel", "EMAIL")
+                        .param("read", "false"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("PATCH /notifications/{id}/in-app/read — 성공 시 200 OK")
     void markAsRead_returns_200() throws Exception {
         UUID id = UUID.randomUUID();
         when(notificationService.markAsRead(id)).thenReturn(true);
 
-        mockMvc.perform(patch("/notifications/{id}/read", id))
+        mockMvc.perform(patch("/notifications/{id}/in-app/read", id))
                 .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("PATCH /notifications/{id}/read — 이미 읽음이면 204 No Content")
+    @DisplayName("PATCH /notifications/{id}/in-app/read — 이미 읽음이면 204 No Content")
     void markAsRead_returns_204_when_already_read() throws Exception {
         UUID id = UUID.randomUUID();
         when(notificationService.markAsRead(id)).thenReturn(false);
 
-        mockMvc.perform(patch("/notifications/{id}/read", id))
+        mockMvc.perform(patch("/notifications/{id}/in-app/read", id))
                 .andExpect(status().isNoContent());
     }
 

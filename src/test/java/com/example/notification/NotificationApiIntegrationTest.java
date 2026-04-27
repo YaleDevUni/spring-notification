@@ -150,10 +150,10 @@ class NotificationApiIntegrationTest {
         inAppNotificationRepository.saveAndFlush(
                 com.example.notification.domain.entity.InAppNotification.create(ref));
 
-        mockMvc.perform(patch("/notifications/{id}/read", n.getId()))
+        mockMvc.perform(patch("/notifications/{id}/in-app/read", n.getId()))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(patch("/notifications/{id}/read", n.getId()))
+        mockMvc.perform(patch("/notifications/{id}/in-app/read", n.getId()))
                 .andExpect(status().isNoContent());
     }
 
