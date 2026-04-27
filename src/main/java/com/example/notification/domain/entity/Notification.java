@@ -76,26 +76,8 @@ public class Notification {
         return true;
     }
 
-    public void markSent() {
-        status = NotificationStatus.SENT;
-        sentAt = Instant.now();
-    }
-
-    public void markFailed() {
-        status = NotificationStatus.FAILED;
-    }
-
-    public void markDead() {
-        status = NotificationStatus.DEAD;
-    }
-
     public void markPending() {
         status = NotificationStatus.PENDING;
-    }
-
-    public boolean isReadyToProcess() {
-        if (status != NotificationStatus.PENDING) return false;
-        return scheduledAt == null || !Instant.now().isBefore(scheduledAt);
     }
 
     public UUID getId() { return id; }
