@@ -43,3 +43,6 @@ memory/
 ARCHITECTURE.md
 ERD.md
 TODO.md
+
+# MacOS
+.DS_Store
