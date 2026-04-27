@@ -8,6 +8,7 @@ import com.example.notification.infrastructure.repository.NotificationTemplateRe
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -15,11 +16,14 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import org.junit.jupiter.api.BeforeEach;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 // 실 DB에 템플릿을 저장하고 sender가 변수 치환된 body를 로그에 출력하는지 검증
 @SuppressWarnings("null")
 @DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({InAppChannelSender.class, EmailChannelSender.class})
 @ExtendWith(OutputCaptureExtension.class)
 @TestPropertySource(properties = {
@@ -34,6 +38,11 @@ class ChannelSenderIntegrationTest {
     @Autowired NotificationTemplateRepository templateRepository;
     @Autowired InAppChannelSender inAppSender;
     @Autowired EmailChannelSender emailSender;
+
+    @BeforeEach
+    void clearTemplates() {
+        templateRepository.deleteAllInBatch();
+    }
 
     @Test
     @DisplayName("InAppChannelSender — DB 템플릿 조회 후 변수 치환된 body 출력")

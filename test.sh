@@ -61,7 +61,7 @@ setup_test_db() {
         success "notification_test DB 이미 존재함"
     else
         info "notification_test DB 생성 중..."
-        psql_exec "postgres" "CREATE DATABASE $TEST_DB OWNER $DB_USER" > /dev/null
+        psql_exec "postgres" "CREATE DATABASE $TEST_DB OWNER \"$DB_USER\"" > /dev/null
         success "notification_test DB 생성 완료"
     fi
 
