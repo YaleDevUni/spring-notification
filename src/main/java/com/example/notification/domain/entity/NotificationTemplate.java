@@ -30,6 +30,25 @@ public class NotificationTemplate {
 
     protected NotificationTemplate() {}
 
+    public static NotificationTemplate create(NotificationType type, NotificationChannel channel,
+                                              String subjectTemplate, String bodyTemplate) {
+        NotificationTemplate t = new NotificationTemplate();
+        t.type = type;
+        t.channel = channel;
+        t.subjectTemplate = subjectTemplate;
+        t.bodyTemplate = bodyTemplate;
+        return t;
+    }
+
+    // 지원 변수: {recipientId}, {type}, {refType}, {refId}
+    public String render(Notification n) {
+        return bodyTemplate
+                .replace("{recipientId}", n.getRecipientId())
+                .replace("{type}", n.getType().name())
+                .replace("{refType}", n.getRefType())
+                .replace("{refId}", n.getRefId());
+    }
+
     public UUID getId() { return id; }
     public NotificationType getType() { return type; }
     public NotificationChannel getChannel() { return channel; }
