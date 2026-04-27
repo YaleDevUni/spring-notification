@@ -25,7 +25,7 @@
 | ORM | Spring Data JPA + Hibernate 6 |
 | DB | PostgreSQL 16 |
 | 마이그레이션 | Flyway 10 |
-| 테스트 | JUnit 5, Mockito, Testcontainers |
+| 테스트 | JUnit 5, Mockito |
 | 인프라 | Docker Compose |
 
 ---
@@ -339,25 +339,38 @@ PENDING
 
 ## 테스트 실행 방법
 
-### 사전 조건
-
-테스트용 DB가 필요합니다.
+### 테스트 스크립트 (권장)
 
 ```bash
-docker-compose up db
+./test.sh
 ```
 
-`notification_test` DB를 별도로 생성합니다.
+인터랙티브 메뉴로 단위/통합 테스트를 선택해 실행합니다.
+DB 컨테이너 기동 및 `notification_test` DB 생성을 자동으로 처리합니다.
 
-```bash
-docker exec -it spring-notification-db-1 \
-  psql -U user -c "CREATE DATABASE notification_test;"
+```
+[ 단위 테스트 — DB 불필요 ]
+  1) 도메인 엔티티
+  2) 서비스 레이어
+  3) 인프라 레이어
+  4) 프레젠테이션
+  5) 도메인 프로세서
+
+[ 통합 테스트 — PostgreSQL notification_test DB 필요 ]
+  6) Repository 통합
+  7) API E2E 통합
+
+[ 묶음 실행 ]
+  8) 단위 테스트 전체 (1~5)
+  9) 통합 테스트 전체 (6~7)
+  0) 전체 테스트 (1~7)
 ```
 
-### 전체 테스트 실행
+번호를 인자로 넘기면 비대화형 실행도 가능합니다.
 
 ```bash
-./gradlew test
+./test.sh 8   # 단위 테스트 전체
+./test.sh 0   # 전체 테스트
 ```
 
 ### 테스트 구성
@@ -366,6 +379,7 @@ docker exec -it spring-notification-db-1 \
 |---------------|------|------|
 | `NotificationTest` | 단위 | 엔티티 상태 전이 |
 | `InAppNotificationTest` | 단위 | 읽음 처리 |
+| `NotificationTemplateTest` | 단위 | 템플릿 변수 치환 |
 | `NotificationProcessorTest` | 단위 | 채널별 분기 처리 |
 | `ChannelSenderTest` | 단위 | 이메일/인앱 발송 로그 |
 | `NotificationServiceTest` | 단위 | 서비스 계층 (Mockito) |
@@ -373,7 +387,9 @@ docker exec -it spring-notification-db-1 \
 | `RecoverySchedulerTest` | 단위 | 좀비 복구 로직 |
 | `NotificationControllerTest` | 단위 | 컨트롤러 (MockMvc) |
 | `NotificationRepositoryTest` | 통합 | JPA 쿼리 검증 (실 PostgreSQL) |
-| `NotificationApiIntegrationTest` | 통합 | 전체 스택 E2E (실 PostgreSQL) |
+| `NotificationApiIntegrationTest` | 통합 | HTTP → Service → DB 전 흐름 (`@SpringBootTest + MockMvc`) |
+
+> **통합 테스트**: `@SpringBootTest`가 테스트 내부에서 Spring 컨텍스트를 직접 기동하므로 앱 서버를 별도로 실행할 필요 없습니다. PostgreSQL 컨테이너만 있으면 됩니다.
 
 ---
 
@@ -382,7 +398,7 @@ docker exec -it spring-notification-db-1 \
 | 항목 | 상태 | 비고 |
 |------|------|------|
 | 실제 이메일 발송 | 미구현 | 로그 출력으로 대체 |
-| Kafka 전환 | 미구현 | `NotificationConsumer` 인터페이스로 구조만 준비 |
+| MQ 전환 | 미구현 | `NotificationConsumer` 인터페이스로 구조만 준비 |
 | 인증/인가 | 미구현 | 수신자 ID 검증 없음 |
 | 페이지네이션 | 미구현 | 목록 조회 시 전체 반환 |
 | 에러 응답 body | 미구현 | 상태 코드만 반환, 메시지 없음 |
