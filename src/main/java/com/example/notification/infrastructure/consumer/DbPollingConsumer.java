@@ -134,9 +134,7 @@ public class DbPollingConsumer implements NotificationConsumer {
                     int updated = notificationRepository.updateStatusIfMatch(
                             n.getId(), NotificationStatus.PENDING, NotificationStatus.PROCESSING);
                     if (updated > 0) {
-                        notificationLockRepository.save(
-                                NotificationLock.create(n.getId(), instanceId, lockExpireSeconds));
-                        // 실제로 락을 획득한 알림만 수집 — 이론상 SKIP LOCKED으로 항상 1이지만 방어적 처리
+                        notificationLockRepository.save(NotificationLock.create(n.getId(), instanceId, lockExpireSeconds));
                         locked.add(n);
                     }
                 }
@@ -155,7 +153,8 @@ public class DbPollingConsumer implements NotificationConsumer {
     void processNotification(Notification notification) {
         UUID id = notification.getId();
         try {
-            // processor.process: 자체 @Transactional — 발송 성공 시 in_app_notifications 저장까지 원자적 처리
+            // processor.process: 자체 @Transactional — 발송 성공 시 in_app_notifications 저장까지 원자적
+            // 처리
             ProcessResult result = processor.process(notification);
             // 결과 기록은 별도 트랜잭션: processor 트랜잭션과 분리해 발송 결과 기록 실패가 발송 롤백을 유발하지 않도록
             transactionTemplate.executeWithoutResult(status -> {
@@ -163,7 +162,8 @@ public class DbPollingConsumer implements NotificationConsumer {
                 int attemptNumber = (int) notificationAttemptRepository.countByNotificationId(id) + 1;
                 recordAttempt(id, result, attemptNumber, instanceId);
                 // 상태 업데이트와 락 삭제를 같은 트랜잭션으로 묶어 원자성 보장
-                // finally 블록에서 분리 시: 상태는 갱신됐는데 락 삭제 실패 → RecoveryScheduler가 PROCESSING 알림을 PENDING으로 복귀시켜 중복 발송 시도
+                // finally 블록에서 분리 시: 상태는 갱신됐는데 락 삭제 실패 → RecoveryScheduler가 PROCESSING 알림을
+                // PENDING으로 복귀시켜 중복 발송 시도
                 notificationLockRepository.deleteById(id);
             });
         } catch (Exception e) {
@@ -174,14 +174,12 @@ public class DbPollingConsumer implements NotificationConsumer {
     @Override
     public void recordAttempt(UUID notificationId, ProcessResult result, int attemptNumber, String instanceId) {
         if (result instanceof ProcessResult.Success) {
-            notificationAttemptRepository.save(
-                    NotificationAttempt.success(notificationId, attemptNumber, instanceId));
+            notificationAttemptRepository.save(NotificationAttempt.success(notificationId, attemptNumber, instanceId));
             notificationRepository.markSent(notificationId);
             log.info("[DbPollingConsumer] SENT notification={} attempt={}", notificationId, attemptNumber);
         } else {
             String reason = ((ProcessResult.Failure) result).cause().getMessage();
-            notificationAttemptRepository.save(
-                    NotificationAttempt.failure(notificationId, attemptNumber, reason, instanceId));
+            notificationAttemptRepository.save(NotificationAttempt.failure(notificationId, attemptNumber, reason, instanceId));
             if (attemptNumber >= maxAttempts) {
                 // 자동 재시도 한도 소진 → DEAD (수동 재시도 대기)
                 notificationRepository.updateStatusIfMatch(
@@ -191,7 +189,8 @@ public class DbPollingConsumer implements NotificationConsumer {
                 // 재시도 여지 있음 → 즉시 PENDING 복귀 (FAILED로 두지 않음)
                 notificationRepository.updateStatusIfMatch(
                         notificationId, NotificationStatus.PROCESSING, NotificationStatus.PENDING);
-                log.warn("[DbPollingConsumer] PENDING(retry) notification={} attempt={}/{}", notificationId, attemptNumber, maxAttempts);
+                log.warn("[DbPollingConsumer] PENDING(retry) notification={} attempt={}/{}", notificationId,
+                        attemptNumber, maxAttempts);
             }
         }
     }
