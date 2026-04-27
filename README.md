@@ -144,6 +144,30 @@ JPQL은 `NOW()` 함수를 지원하지 않습니다.
 - 첫 번째 호출: `200 OK` (변경 발생)
 - 이후 호출: `204 No Content` (no-op)
 
+### 발송 스케줄링
+
+별도 스케줄러 없이 폴링 쿼리 조건 한 줄로 구현합니다.
+
+```sql
+AND (scheduled_at IS NULL OR scheduled_at <= NOW())
+```
+
+- `scheduledAt` 미지정 → 즉시 처리 대상
+- `scheduledAt` 미래 시각 → 해당 시각 도달 전까지 폴링에서 제외, 이후 자동 픽업
+
+### 알림 템플릿
+
+`notification_templates` 테이블에서 `(type, channel)` 조합으로 템플릿을 조회해 발송 시 적용합니다.
+
+지원 변수: `{recipientId}`, `{type}`, `{refType}`, `{refId}`
+
+```
+템플릿 body: "{recipientId}님, {refId} 강의가 곧 시작됩니다."
+렌더링 결과: "홍길동님, spring-boot-101 강의가 곧 시작됩니다."
+```
+
+템플릿이 없으면 fallback 로그로 graceful degradation합니다. 템플릿은 DB에 직접 INSERT해 관리합니다.
+
 ---
 
 ## API 목록 및 예시
@@ -358,7 +382,6 @@ docker exec -it spring-notification-db-1 \
 | 항목 | 상태 | 비고 |
 |------|------|------|
 | 실제 이메일 발송 | 미구현 | 로그 출력으로 대체 |
-| 알림 템플릿 | 스키마만 구현 | `notification_templates` 테이블과 조회 메서드까지 작성, 발송 시 실제 적용은 미완성 |
 | Kafka 전환 | 미구현 | `NotificationConsumer` 인터페이스로 구조만 준비 |
 | 인증/인가 | 미구현 | 수신자 ID 검증 없음 |
 | 페이지네이션 | 미구현 | 목록 조회 시 전체 반환 |
