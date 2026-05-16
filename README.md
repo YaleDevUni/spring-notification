@@ -1,7 +1,5 @@
 # 알림 발송 시스템
 
-과제 C — 이벤트 / 비동기 / 운영 고려형
-
 ---
 
 ## 프로젝트 개요
@@ -59,29 +57,26 @@ docker-compose up db
 
 ---
 
-## 요구사항 해석 및 가정
+## 핵심 설계 원칙
 
-### 해석
-
-**"알림 처리 실패가 비즈니스 트랜잭션에 영향을 주어서는 안 된다"**
+**비동기 분리**
 - API 요청 스레드는 DB INSERT(PENDING 상태 기록)까지만 수행하고 즉시 202를 반환합니다.
 - 실제 발송은 별도 Worker 스레드가 담당하며, 발송 성패는 API 응답에 반영되지 않습니다.
-- "예외를 무시하지 않는다"는 조건을 `notification_attempts`에 실패 사유를 기록하고, 재시도 및 DEAD 전락 정책으로 충족합니다.
+- 발송 실패 사유는 `notification_attempts`에 기록되고, 재시도 및 DEAD 전환 정책으로 추적됩니다.
 
-**"중복 발송 방지"**
+**중복 발송 방지**
 - DB UNIQUE 제약(`recipient_id + type + ref_type + ref_id + channel`)으로 동일 이벤트에 대한 중복 등록을 막습니다.
 - 다중 인스턴스 동시 처리는 `FOR UPDATE SKIP LOCKED`로 방지합니다.
 - `ON CONFLICT DO NOTHING`으로 좀비 복구 후 재처리 시 IN_APP 행 중복 INSERT도 안전하게 처리합니다.
 
-**"실제 운영 환경으로 전환 가능한 구조"**
+**MQ 전환 가능 구조**
 - `NotificationConsumer` 인터페이스와 `@Profile("db")`로 현재 DB 폴링 구현체를 격리했습니다.
 - `@Profile("kafka")`로 Kafka Consumer 구현체를 추가하고 `spring.profiles.active=kafka`로 전환하면 됩니다.
 - Worker 내부 처리 로직(`processNotification`)은 채널과 무관하게 재사용됩니다.
 
-### 가정
-
+**기타 설계 가정**
 - `recipient_id`는 외부 시스템(회원 서비스)의 식별자이므로 별도 검증 없이 String으로 수신합니다.
-- 실제 이메일 발송은 구현 범위 외이므로 로그 출력으로 대체합니다.
+- 실제 이메일 발송은 로그 출력으로 대체합니다.
 - IN_APP 채널의 `read` 필터(`?read=true/false`)는 IN_APP 알림에만 의미가 있으므로, EMAIL 알림은 해당 필터 결과에서 제외됩니다.
 
 ---
@@ -397,41 +392,12 @@ DB 컨테이너 기동 및 `notification_test` DB 생성을 자동으로 처리�
 
 ---
 
-## 미구현 / 제약사항
+## 향후 개선 방향
 
-| 항목 | 상태 | 비고 |
-|------|------|------|
-| 실제 이메일 발송 | 미구현 | 로그 출력으로 대체 |
-| MQ 전환 | 미구현 | `NotificationConsumer` 인터페이스로 구조만 준비 |
-| 인증/인가 | 미구현 | 수신자 ID 검증 없음 |
-| 페이지네이션 | 미구현 | 목록 조회 시 전체 반환 |
-| 에러 응답 body | 미구현 | 상태 코드만 반환, 메시지 없음 |
-
----
-
-## AI 활용 범위
-
-본 프로젝트는 Claude Code (claude-sonnet-4-6)를 활용해 개발했습니다.
-
-### AI가 주도한 영역
-
-- 초기 프로젝트 스캐폴딩 및 디렉토리 구조 설계
-- Flyway 마이그레이션 SQL 작성
-- 테스트 코드 작성 (단위 / 통합 / Repository)
-- `DbPollingConsumer` 폴링 로직 구현
-- `RecoveryScheduler` 좀비 복구 구현
-- `FOR UPDATE SKIP LOCKED`, `ON CONFLICT DO NOTHING` 등 PostgreSQL 전용 쿼리 작성
-
-### 사람이 주도하고 AI가 보조한 영역
-
-- 전체 설계 방향 결정 (DB 폴링 vs 메시지 브로커, 상태 머신 설계)
-- 재시도 정책 결정 (자동 3회 + 수동 2회, 이력 초기화 없음)
-- 중복 방지 전략 결정 (UNIQUE 제약 + SKIP LOCKED 이중 방어)
-- 코드 리뷰 및 방향 수정 (OSIV 비활성화, DTO 도입, sentAt 버그 발견)
-- MQ전환용 인터페이스 설계
-
-### AI 활용 방식
-
-- Claude Code CLI를 통해 TDD 사이클(Red → Green → Refactor)을 함께 진행
-- 각 기능 구현 전 요구사항을 함께 분석하고 설계 방향을 논의
-- 커밋 단위는 사람이 직접 판단하여 수행
+| 항목 | 설명 |
+|------|------|
+| 실제 이메일 발송 | SMTP / SES 연동으로 교체 가능 |
+| MQ 전환 | `@Profile("kafka")` 구현체 추가로 전환 |
+| 인증/인가 | JWT 기반 수신자 검증 추가 |
+| 페이지네이션 | 커서 기반 페이지네이션 도입 |
+| 에러 응답 body | RFC 7807 Problem Details 포맷 적용 |
